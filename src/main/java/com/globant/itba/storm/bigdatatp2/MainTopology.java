@@ -1,21 +1,26 @@
 package com.globant.itba.storm.bigdatatp2;
 
-import java.io.IOException;
-
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
+import java.util.List;
 
 import backtype.storm.Config;
 import backtype.storm.LocalCluster;
 import backtype.storm.StormSubmitter;
 import backtype.storm.topology.TopologyBuilder;
+import backtype.storm.tuple.Tuple;
 import backtype.storm.utils.Utils;
 
-import com.globant.itba.storm.bigdatatp2.hbase.ChannelRepository;
-import com.globant.itba.storm.bigdatatp2.iobolts.SystemOutBolt;
-import com.globant.itba.storm.bigdatatp2.metricbolts.ViewersByChannelBolt;
+import com.globant.itba.storm.bigdatatp2.functions.Function;
+import com.globant.itba.storm.bigdatatp2.functions.chars.GetCategoryListFunction;
+import com.globant.itba.storm.bigdatatp2.functions.chars.GetChannelFunction;
+import com.globant.itba.storm.bigdatatp2.functions.chars.GetClientType;
+import com.globant.itba.storm.bigdatatp2.functions.chars.GetFamilyGroupFunction;
+import com.globant.itba.storm.bigdatatp2.functions.chars.UnitaryImageFunction;
+import com.globant.itba.storm.bigdatatp2.functions.mappers.GetChannelNameFunction;
+import com.globant.itba.storm.bigdatatp2.functions.mappers.IdentityFunction;
+import com.globant.itba.storm.bigdatatp2.metricbolts.BoxFrequencyBolt;
+import com.globant.itba.storm.bigdatatp2.metricbolts.BoxListFrequencyBolt;
+import com.globant.itba.storm.bigdatatp2.metricbolts.FrequencyOutputBolt;
 import com.globant.itba.storm.bigdatatp2.spouts.MessageQueueSpout;
-import com.globant.itba.storm.bigdatatp2.spouts.PeriodicSpout;
 
 /**
  * This is a basic example of a Storm topology.
@@ -24,34 +29,15 @@ public class MainTopology {
     
     public static void main(String[] args) throws Exception {
     	
-    	Configuration hbaseConf = HBaseConfiguration.create();
-    	hbaseConf.addResource("/home/hadoop/hbase-0.94.6.1/conf/hbase-site.xml");
-    	hbaseConf.set("hbase.rootdir", "hdfs://hadoop-2013-namenode:9000/hbase");
-    	hbaseConf.set("hbase.zookeeper.quorum", "hadoop-2013-datanode-1");
-    	hbaseConf.set("hbase.zookeeper.property.clientPort", "2181");
-    	
     	TopologyBuilder builder = new TopologyBuilder();
-    	try {
-    		// init repos
-    		ChannelRepository.setConf(hbaseConf);
-    		
-    		//build the topology
-    		builder.setSpout("periodic", new PeriodicSpout(1));
-    	    builder.setSpout("msgqueue", new MessageQueueSpout());
-    	    builder.setBolt("viewersByChannel", new ViewersByChannelBolt())
-    	        .noneGrouping("msgqueue")
-    	        .noneGrouping("periodic");
-    	        // TODO change stdout to a bolt that creates a file or something for the UI
-    	    builder.setBolt("stdout", new SystemOutBolt())
-    	        .noneGrouping("viewersByChannel");
-    	} catch (IOException e) {
-    		e.printStackTrace();
-    	}
+    	builder.setSpout("msgqueue", new MessageQueueSpout());
     	
-        
-        
-        
-       
+    	addMetricToBuilder(builder, new GetChannelFunction(), new GetChannelNameFunction(), "ViewersPerChannel", true);
+    	addMetricToBuilder(builder, new UnitaryImageFunction(), new IdentityFunction(), "TotalViewers", false);
+        //TODO uncomment these lines once the functions are implemented
+//    	addMetricToBuilder(builder, new GetClientType(), new IdentityFunction(), "ViewersPerType", true);
+//    	addMetricToBuilder(builder, new GetFamilyGroupFunction(), new IdentityFunction(), "ViewersPerFamilyGroup", true);
+//    	addListMetricToBuilder(builder, new GetCategoryListFunction(), new GetChannelNameFunction(), "ViewersPerCategory", true);
                 
         Config conf = new Config();
         conf.setDebug(false);
@@ -64,9 +50,25 @@ public class MainTopology {
         
             LocalCluster cluster = new LocalCluster();
             cluster.submitTopology("test", conf, builder.createTopology());
-            Utils.sleep(10000);
+            Utils.sleep(300000);
             cluster.killTopology("test");
             cluster.shutdown();    
         }
+    }
+    
+    private static void addMetricToBuilder(TopologyBuilder builder, Function<Tuple, String> charFunc, 
+    		Function<String, String> mapperFunc, String charName, boolean checkOnChannelChange) {
+    	builder.setBolt(charName + "Counter", new BoxFrequencyBolt(charFunc, checkOnChannelChange), 1)
+        .noneGrouping("msgqueue");
+    builder.setBolt(charName + "Dumper", new FrequencyOutputBolt(mapperFunc, charName), 1)
+    	.noneGrouping(charName + "Counter");
+    }
+    
+    private static void addListMetricToBuilder(TopologyBuilder builder, Function<Tuple, List<String>> charFunc, 
+    		Function<String, String> mapperFunc, String charName, boolean checkOnChannelChange) {
+    	builder.setBolt(charName + "Counter", new BoxListFrequencyBolt(charFunc, checkOnChannelChange), 1)
+        .noneGrouping("msgqueue");
+    builder.setBolt(charName + "Dumper", new FrequencyOutputBolt(mapperFunc, charName), 1)
+    	.noneGrouping(charName + "Counter");
     }
 }

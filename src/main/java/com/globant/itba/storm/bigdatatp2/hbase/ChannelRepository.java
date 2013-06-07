@@ -19,14 +19,16 @@ public class ChannelRepository {
 	
 	private static HTable channelTable;
 	
-	public static void setConf(Configuration conf) throws IOException {
-		channelTable = new HTable(conf, "channel");
+	public static synchronized void setConf(Configuration conf) throws IOException {
+		if (channelTable == null) {
+			channelTable = new HTable(conf, "channel");
+		}
 	}
 	
-	public static String getChannelName(Integer channel) throws IOException {
+	public static String getChannelName(String channel) throws IOException {
 		
 		RowFilter rowFilter = new RowFilter(CompareOp.EQUAL,
-				new BinaryComparator(Bytes.toBytes(channel.toString())));
+				new BinaryComparator(Bytes.toBytes(channel)));
 		Scan scan = new Scan();
 		scan.setFilter(rowFilter);
 		ResultScanner resultScanner = channelTable.getScanner(scan);

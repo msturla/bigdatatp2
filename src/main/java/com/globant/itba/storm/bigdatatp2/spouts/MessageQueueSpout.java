@@ -2,8 +2,17 @@ package com.globant.itba.storm.bigdatatp2.spouts;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 
+import javax.jms.Connection;
+import javax.jms.ConnectionFactory;
+import javax.jms.Destination;
+import javax.jms.JMSException;
+import javax.jms.Message;
+import javax.jms.MessageConsumer;
+import javax.jms.Session;
+import javax.jms.TextMessage;
+
+import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.log4j.Logger;
 
 import backtype.storm.Config;
@@ -14,16 +23,20 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichSpout;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
-import backtype.storm.utils.Utils;
 
 public class MessageQueueSpout extends BaseRichSpout {
+	
 	private static final long serialVersionUID = 1L;
+	private static String URL = "tcp://hadoop-2013-datanode-2:61616";
+	private Connection connection;
+	private Session session;
+	private MessageConsumer consumer;
+	
 	public static Logger LOG = Logger.getLogger(TestWordSpout.class);
     boolean _isDistributed;
     SpoutOutputCollector _collector;
-
-    private Random rand = new Random();
     
+
     public MessageQueueSpout() {
         this(true);
     }
@@ -35,22 +48,53 @@ public class MessageQueueSpout extends BaseRichSpout {
     @SuppressWarnings("rawtypes")
 	public void open(Map conf, TopologyContext context, SpoutOutputCollector collector) {
         _collector = collector;
+        ConnectionFactory connectionFactory = new ActiveMQConnectionFactory(URL);
+        System.out.println("Preparing con");
+        try {
+        	System.out.println("creating con");
+			connection = connectionFactory.createConnection();
+			System.out.println("starting");
+			connection.start();
+			System.out.println("creating session");
+			session = connection.createSession(false,
+	                Session.AUTO_ACKNOWLEDGE);
+			System.out.println("creating queue");
+			Destination queue = session.createQueue("cheese");
+			System.out.println("creating consumer");
+			consumer = session.createConsumer(queue);
+			System.out.println("created consumer. done setting up mq");
+		} catch (JMSException e) {
+			System.out.println("fuck");
+			e.printStackTrace();
+		}
+        
     }
     
     public void close() {
-        
+        try {
+        	consumer.close();
+        	session.close();
+        	connection.close();
+        } catch (JMSException e) {
+        	
+        }
     }
         
     public void nextTuple() {
     	//TODO read these from activemq
-    	Utils.sleep(100);
-    	String json = getRandomJsonLine();
-    	long box_id = Long.valueOf(getField(json, "box_id"));
-    	String channelString = getField(json, "channel");
-    	Integer channel = channelString == null? null : Integer.valueOf(channelString);
-    	String power = getField(json, "power");
-    	long timestamp = Long.valueOf(getField(json, "timestamp"));
-        _collector.emit(new Values(box_id, channel, power, timestamp));
+    	//String json = getRandomJsonLine();
+    	try{
+    		Message msg = consumer.receive();
+    		TextMessage textmsg = (TextMessage) msg;
+    		String json = textmsg.getText();
+    		long box_id = Long.valueOf(getField(json, "box_id"));
+    		String channelString = getField(json, "channel");
+    		String power = getField(json, "power");
+    		long timestamp = Long.valueOf(getField(json, "timestamp"));
+    		_collector.emit(new Values(box_id, channelString, power, timestamp, json));    		
+    	} catch (JMSException e) {
+    		System.out.printf("Error while reading from JMS: %s\n", e.getMessage());
+    	}
     }
     
     public void ack(Object msgId) {
@@ -59,14 +103,6 @@ public class MessageQueueSpout extends BaseRichSpout {
 
     public void fail(Object msgId) {
         
-    }
-    
-    //TODO remove this
-    private String getRandomJsonLine() {
-    	int randomChannel = rand.nextInt(10);
-    	int randomBox = rand.nextInt(5);
-    	return String.format("{\"box_id\":%d, \"channel\":%d, \"timestamp\":%d}",
-    			randomBox, randomChannel, System.currentTimeMillis());
     }
     
     private String getField(String line, String name) {
@@ -82,7 +118,7 @@ public class MessageQueueSpout extends BaseRichSpout {
 	}
     
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
-        declarer.declare(new Fields("box_id", "channel", "power", "timestamp"));
+        declarer.declare(new Fields("box_id", "channel", "power", "timestamp", "json"));
     }
 
     @Override
