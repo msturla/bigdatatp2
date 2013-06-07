@@ -6,14 +6,12 @@ import backtype.storm.Config;
 import backtype.storm.LocalCluster;
 import backtype.storm.StormSubmitter;
 import backtype.storm.topology.TopologyBuilder;
+import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.utils.Utils;
 
 import com.globant.itba.storm.bigdatatp2.functions.Function;
-import com.globant.itba.storm.bigdatatp2.functions.chars.GetCategoryListFunction;
 import com.globant.itba.storm.bigdatatp2.functions.chars.GetChannelFunction;
-import com.globant.itba.storm.bigdatatp2.functions.chars.GetClientType;
-import com.globant.itba.storm.bigdatatp2.functions.chars.GetFamilyGroupFunction;
 import com.globant.itba.storm.bigdatatp2.functions.chars.UnitaryImageFunction;
 import com.globant.itba.storm.bigdatatp2.functions.mappers.GetChannelNameFunction;
 import com.globant.itba.storm.bigdatatp2.functions.mappers.IdentityFunction;
@@ -60,8 +58,8 @@ public class MainTopology {
     		Function<String, String> mapperFunc, String charName, boolean checkOnChannelChange) {
     	builder.setBolt(charName + "Counter", new BoxFrequencyBolt(charFunc, checkOnChannelChange), 1)
         .noneGrouping("msgqueue");
-    builder.setBolt(charName + "Dumper", new FrequencyOutputBolt(mapperFunc, charName), 1)
-    	.noneGrouping(charName + "Counter");
+    builder.setBolt(charName + "Dumper", new FrequencyOutputBolt(mapperFunc, charName), 3)
+    	.fieldsGrouping(charName + "Counter", new Fields("key"));
     }
     
     private static void addListMetricToBuilder(TopologyBuilder builder, Function<Tuple, List<String>> charFunc, 

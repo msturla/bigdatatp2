@@ -2,7 +2,6 @@ package com.globant.itba.storm.bigdatatp2.metricbolts;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -27,16 +26,12 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	// If not required, just use identity function
 	private final Function<String, String> mapperFunction;
 	
-	private Map<String, Long> frequencyTable;
 	private Map<String, String> mappings;
 	
 	private String characteristic;
 		
-	private long currMinuteFromEpoch = -1;
-	
 	public FrequencyOutputBolt(Function<String, String> func, String characteristic) {
 		this.mapperFunction = func;
-		frequencyTable = new HashMap<String, Long>();
 		mappings = new HashMap<String, String>();
 		this.characteristic = characteristic;
 	}
@@ -52,30 +47,9 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	@Override
 	public void execute(Tuple input) {
 		long minute = input.getLongByField("minute");
-		if (currMinuteFromEpoch == -1) {
-			currMinuteFromEpoch = minute;
-		}
-		if (minute != currMinuteFromEpoch) {
-			currMinuteFromEpoch = minute;
-			exportData();
-			frequencyTable.clear();
-		} else {
-			String key = input.getStringByField("key");
-			Long quantity = input.getLongByField("frequency");
-			if (key == null || quantity == null) {
-				System.out.println("OE");
-			}
-			addFrequencyToTable(key, quantity);
-		}
-			
-	}
-	
-	
-	private void exportData() {
-		for (Entry<String, Long> entry : frequencyTable.entrySet()) {
-			String key = entry.getKey();
-			exportRow(currMinuteFromEpoch, getMapping(key), entry.getValue());
-		}	
+		String key = input.getStringByField("key");
+		long quantity = input.getLongByField("frequency");
+		exportRow(minute, getMapping(key), quantity);
 	}
 	
 	private String getMapping(String key) {
@@ -93,13 +67,6 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		// Insert into table: characteristic
 		// minute: minuteFromEpoch, key: key, quantity: quantity
 		System.out.printf("%d, %s, %d\n", minuteFromEpoch, key, quantity);
-	}
-	
-	private void addFrequencyToTable(String key, long quantity) {
-		if (!frequencyTable.containsKey(key)) {
-			frequencyTable.put(key, (long) 0);
-		}
-		frequencyTable.put(key, frequencyTable.get(key) + quantity);
 	}
 
 	@Override
