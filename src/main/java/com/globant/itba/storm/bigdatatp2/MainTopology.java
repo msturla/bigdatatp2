@@ -11,7 +11,10 @@ import backtype.storm.tuple.Tuple;
 import backtype.storm.utils.Utils;
 
 import com.globant.itba.storm.bigdatatp2.functions.Function;
+import com.globant.itba.storm.bigdatatp2.functions.chars.GetCategoryListFunction;
 import com.globant.itba.storm.bigdatatp2.functions.chars.GetChannelFunction;
+import com.globant.itba.storm.bigdatatp2.functions.chars.GetClientTypeFunction;
+import com.globant.itba.storm.bigdatatp2.functions.chars.GetFamilyGroupFunction;
 import com.globant.itba.storm.bigdatatp2.functions.chars.UnitaryImageFunction;
 import com.globant.itba.storm.bigdatatp2.functions.mappers.GetChannelNameFunction;
 import com.globant.itba.storm.bigdatatp2.functions.mappers.IdentityFunction;
@@ -32,10 +35,10 @@ public class MainTopology {
     	
     	addMetricToBuilder(builder, new GetChannelFunction(), new GetChannelNameFunction(), "ViewersPerChannel", true);
     	addMetricToBuilder(builder, new UnitaryImageFunction(), new IdentityFunction(), "TotalViewers", false);
-        //TODO uncomment these lines once the functions are implemented
-//    	addMetricToBuilder(builder, new GetClientType(), new IdentityFunction(), "ViewersPerType", true);
-//    	addMetricToBuilder(builder, new GetFamilyGroupFunction(), new IdentityFunction(), "ViewersPerFamilyGroup", true);
-//    	addListMetricToBuilder(builder, new GetCategoryListFunction(), new GetChannelNameFunction(), "ViewersPerCategory", true);
+    	addMetricToBuilder(builder, new GetClientTypeFunction(), new IdentityFunction(), "ViewersPerType", true);
+    	addMetricToBuilder(builder, new GetFamilyGroupFunction(), new IdentityFunction(), "ViewersPerFamilyGroup", true);
+    	addListMetricToBuilder(builder, new GetCategoryListFunction(), new IdentityFunction(), "ViewersPerCategory", true);
+   
                 
         Config conf = new Config();
         conf.setDebug(false);

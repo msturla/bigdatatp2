@@ -13,8 +13,9 @@ public class Repositories {
     	hbaseConf.set("hbase.zookeeper.quorum", "hadoop-2013-datanode-1");
     	hbaseConf.set("hbase.zookeeper.property.clientPort", "2181");
     	try {
-    		//TODO add extra repositories here
-    		ChannelRepository.setConf(hbaseConf);    		
+    		//add extra repositories here
+    		ChannelRepository.setConf(hbaseConf);
+    		CustomerRepository.setConf(hbaseConf);
     	} catch (IOException e) {
     		e.printStackTrace();
     	}

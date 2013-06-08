@@ -1,6 +1,7 @@
 package com.globant.itba.storm.bigdatatp2.hbase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -40,6 +41,30 @@ public class ChannelRepository {
 				for (KeyValue column : columns) {
 					if (new String(column.getQualifier()).equals("name")) {
 						return new String(column.getValue());
+					}
+				}
+			}			
+		} finally {
+			resultScanner.close();
+		}
+	    return null;
+	}
+	
+	public static List<String> getChannelCategories(String channel) throws IOException {
+		
+		RowFilter rowFilter = new RowFilter(CompareOp.EQUAL,
+				new BinaryComparator(Bytes.toBytes(channel)));
+		Scan scan = new Scan();
+		scan.setFilter(rowFilter);
+		ResultScanner resultScanner = channelTable.getScanner(scan);
+		try {
+			Iterator<Result> results = resultScanner.iterator();
+			if (results.hasNext()) {
+				Result result = results.next();
+				List<KeyValue> columns = result.list();
+				for (KeyValue column : columns) {
+					if (new String(column.getQualifier()).equals("categories")) {
+						 return Arrays.asList((new String(column.getValue()).split(",")));
 					}
 				}
 			}			
