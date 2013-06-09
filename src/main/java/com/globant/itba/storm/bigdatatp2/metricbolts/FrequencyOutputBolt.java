@@ -9,6 +9,7 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
+import com.globant.itba.storm.bigdatatp2.db.MySql;
 import com.globant.itba.storm.bigdatatp2.functions.Function;
 import com.globant.itba.storm.bigdatatp2.functions.mappers.IdentityFunction;
 import com.globant.itba.storm.bigdatatp2.hbase.Repositories;
@@ -66,7 +67,9 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		//TODO hacer estos inserts
 		// Insert into table: characteristic
 		// minute: minuteFromEpoch, key: key, quantity: quantity
-		System.out.printf("%d, %s, %d\n", minuteFromEpoch, key, quantity);
+		//System.out.printf("Metrica: %s, %d, %s, %d\n", this.characteristic, minuteFromEpoch, key, quantity);
+		(new MySql()).insertRow(this.characteristic, minuteFromEpoch, key, quantity);
+		System.out.println("INSERT INTO metrics(METRIC_TYPE, METRIC_KEY, MINUTE, QUANTITY) VALUES ('"+this.characteristic+"','"+key+"',"+String.valueOf(minuteFromEpoch)+","+String.valueOf(quantity)+");");
 	}
 
 	@Override
