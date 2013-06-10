@@ -61,7 +61,7 @@ public class MessageQueueSpout extends BaseRichSpout {
 			session = connection.createSession(false,
 	                Session.AUTO_ACKNOWLEDGE);
 			System.out.println("creating queue");
-			Destination queue = session.createQueue("cheese");
+			Destination queue = session.createQueue(this.queueName);
 			System.out.println("creating consumer");
 			consumer = session.createConsumer(queue);
 			System.out.println("created consumer. done setting up mq");
