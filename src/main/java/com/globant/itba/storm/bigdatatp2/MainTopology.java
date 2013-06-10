@@ -36,20 +36,17 @@ public class MainTopology {
     	
     	if( args != null && args.length > 0){
     		for( String arg: args){
-    			System.out.println(arg);
     			if( arg.toLowerCase().startsWith("--topologyname=" )){
     				flags[0] = true;
     				parameters[0] = arg.substring(15);
-    				System.out.println(parameters[0]);
     			}else if( arg.toLowerCase().startsWith("--msgqueuename=" ) ){
     				flags[1] = true;
     				parameters[1] = arg.substring(15);
-    				System.out.println(parameters[1]);
     			}
     		}
     	}
-    	if( flags[0] ){
-    		builder.setSpout("msgqueue", new MessageQueueSpout(true, parameters[0]));
+    	if( flags[1] ){
+    		builder.setSpout("msgqueue", new MessageQueueSpout(true, parameters[1]));
     	}else{
     		builder.setSpout("msgqueue", new MessageQueueSpout());
     	}
@@ -65,10 +62,10 @@ public class MainTopology {
         Config conf = new Config();
         conf.setDebug(false);
         
-        if( flags[1]) {
+        if( flags[0]) {
             conf.setNumWorkers(3);
             
-            StormSubmitter.submitTopology(parameters[1], conf, builder.createTopology());
+            StormSubmitter.submitTopology(parameters[0], conf, builder.createTopology());
         } else {
         
             LocalCluster cluster = new LocalCluster();

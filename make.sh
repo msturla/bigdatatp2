@@ -1,2 +1,1 @@
-mysql --user=$2 --password=$3 $1 < scripts/delete.sql
-mysql --user=$2 --password=$3 $1 < scripts/make.sql
+ssh hadoop-2013-datanode-6 'bash -s' < scripts/make.sh
