@@ -36,12 +36,15 @@ public class MainTopology {
     	
     	if( args != null && args.length > 0){
     		for( String arg: args){
+    			System.out.println(arg);
     			if( arg.toLowerCase().startsWith("--topologyname=" )){
     				flags[0] = true;
     				parameters[0] = arg.substring(15);
+    				System.out.println(parameters[0]);
     			}else if( arg.toLowerCase().startsWith("--msgqueuename=" ) ){
     				flags[1] = true;
     				parameters[1] = arg.substring(15);
+    				System.out.println(parameters[1]);
     			}
     		}
     	}
@@ -69,10 +72,7 @@ public class MainTopology {
         } else {
         
             LocalCluster cluster = new LocalCluster();
-            cluster.submitTopology("test", conf, builder.createTopology());
-            Utils.sleep(300000);
-            cluster.killTopology("test");
-            cluster.shutdown();    
+            cluster.submitTopology("local", conf, builder.createTopology());
         }
     }
     

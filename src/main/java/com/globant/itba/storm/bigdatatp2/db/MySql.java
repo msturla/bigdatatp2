@@ -25,17 +25,12 @@ public class MySql {
 	private Connection connect() throws SQLException, ClassNotFoundException {
 		Class.forName("com.mysql.jdbc.Driver");
 		Connection conn = null;
-    	Properties prop = new Properties();
     	 
-    	try {
-    		prop.load(new FileInputStream("db.properties"));
-    		String connectionString = "jdbc:mysql://10.212.83.136:3306/" + prop.getProperty("database");
+    		String connectionString = "jdbc:mysql://10.212.83.136:3306/bigdata";
     		conn = DriverManager.getConnection(connectionString,
-					prop.getProperty("dbuser"), prop.getProperty("dbpassword"));    		
+					"root", "root");    		
  
-    	} catch (IOException ex) {
-    		ex.printStackTrace();
-        }
+    	
 		return conn;
 	}
 }
