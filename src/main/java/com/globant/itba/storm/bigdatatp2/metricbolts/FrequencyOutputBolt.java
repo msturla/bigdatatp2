@@ -69,7 +69,7 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		// minute: minuteFromEpoch, key: key, quantity: quantity
 		//System.out.printf("Metrica: %s, %d, %s, %d\n", this.characteristic, minuteFromEpoch, key, quantity);
 		(new MySql()).insertRow(this.characteristic, minuteFromEpoch, key, quantity);
-		System.out.println("INSERT INTO metrics(METRIC_TYPE, METRIC_KEY, MINUTE, QUANTITY) VALUES ('"+this.characteristic+"','"+key+"',"+String.valueOf(minuteFromEpoch)+","+String.valueOf(quantity)+");");
+		//System.out.println("INSERT INTO "+ this.characteristic +"(METRIC_KEY, MINUTE, QUANTITY) VALUES ('"+key+"',"+String.valueOf(minuteFromEpoch)+","+String.valueOf(quantity)+");");
 	}
 
 	@Override
