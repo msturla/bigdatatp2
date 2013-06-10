@@ -31,7 +31,26 @@ public class MainTopology {
     public static void main(String[] args) throws Exception {
     	
     	TopologyBuilder builder = new TopologyBuilder();
-    	builder.setSpout("msgqueue", new MessageQueueSpout());
+    	boolean flags[] = new boolean[2];
+    	String parameters[] = new String[2];
+    	
+    	if( args != null && args.length > 0){
+    		for( String arg: args){
+    			if( arg.toLowerCase().startsWith("--topologyname=" )){
+    				flags[0] = true;
+    				parameters[0] = arg.substring(15);
+    			}else if( arg.toLowerCase().startsWith("--msgqueuename=" ) ){
+    				flags[1] = true;
+    				parameters[1] = arg.substring(15);
+    			}
+    		}
+    	}
+    	if( flags[0] ){
+    		builder.setSpout("msgqueue", new MessageQueueSpout(true, parameters[0]));
+    	}else{
+    		builder.setSpout("msgqueue", new MessageQueueSpout());
+    	}
+    	
     	
     	addMetricToBuilder(builder, new GetChannelFunction(), new GetChannelNameFunction(), "ViewersPerChannel", true);
     	addMetricToBuilder(builder, new UnitaryImageFunction(), new IdentityFunction(), "TotalViewers", false);
@@ -43,10 +62,10 @@ public class MainTopology {
         Config conf = new Config();
         conf.setDebug(false);
         
-        if(args!=null && args.length > 0) {
+        if( flags[1]) {
             conf.setNumWorkers(3);
             
-            StormSubmitter.submitTopology(args[0], conf, builder.createTopology());
+            StormSubmitter.submitTopology(parameters[1], conf, builder.createTopology());
         } else {
         
             LocalCluster cluster = new LocalCluster();

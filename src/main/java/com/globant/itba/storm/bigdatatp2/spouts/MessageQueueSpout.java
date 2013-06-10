@@ -28,6 +28,7 @@ public class MessageQueueSpout extends BaseRichSpout {
 	
 	private static final long serialVersionUID = 1L;
 	private static String URL = "tcp://hadoop-2013-datanode-2:61616";
+	private String queueName;
 	private Connection connection;
 	private Session session;
 	private MessageConsumer consumer;
@@ -38,11 +39,12 @@ public class MessageQueueSpout extends BaseRichSpout {
     
 
     public MessageQueueSpout() {
-        this(true);
+        this(true, "cheese");
     }
 
-    public MessageQueueSpout(boolean isDistributed) {
+    public MessageQueueSpout(boolean isDistributed, String queueName) {
         _isDistributed = isDistributed;
+        this.queueName = queueName;
     }
         
     @SuppressWarnings("rawtypes")
@@ -131,5 +133,13 @@ public class MessageQueueSpout extends BaseRichSpout {
             return null;
         }
     }
+
+	public String getQueueName() {
+		return queueName;
+	}
+
+	public void setQueueName(String queueName) {
+		this.queueName = queueName;
+	}
     
 }
