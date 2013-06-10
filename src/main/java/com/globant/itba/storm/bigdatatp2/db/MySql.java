@@ -13,7 +13,7 @@ public class MySql {
 		try {
 		Connection connection = this.connect();
 			Statement statement = connection.createStatement();
-			statement.execute("INSERT INTO metrics(METRIC_TYPE, METRIC_KEY, MINUTE, QUANTITY) VALUES ('"+metric_type+"','"+key+"',"+String.valueOf(minuteFromEpoch)+","+String.valueOf(quantity)+");");
+			statement.execute("INSERT INTO "+ metric_type +"(METRIC_KEY, MINUTE, QUANTITY) VALUES ('"+key+"',"+String.valueOf(minuteFromEpoch)+","+String.valueOf(quantity)+");");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
