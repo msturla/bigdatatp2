@@ -25,12 +25,7 @@ public class BoxListFrequencyBolt extends AbstractFrequencyBolt {
 	// However, most HBase queries are cached.
 	private Function<Tuple, List<String>> characteristicFunction;
 	
-	// Boolean which indicates if the "characteristic" depends solely on the box id.
-	// If it does not, then it must be recalculated on every single channel change.
-	boolean recalculateOnChannelChange;
-	
 	private Map<Long, List<String>> lastSeenValues;
-	private Map<String, Long> frequencyTable;
 	
 	
 	public BoxListFrequencyBolt(Function<Tuple, List<String>> func, boolean recalculateOnChannelChange) {

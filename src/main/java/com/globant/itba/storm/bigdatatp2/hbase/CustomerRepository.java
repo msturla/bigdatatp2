@@ -23,11 +23,20 @@ public class CustomerRepository {
 	private static Map<String, String> cachedClientTypes;
 	private static Map<String, String> cachedFamilyGroups;
 	
+	private static boolean closed;
+	
 	public static synchronized void setConf(Configuration conf) throws IOException {
 		if (customerTable == null) {
 			customerTable = new HTable(conf, "customer");
 			cachedClientTypes = new HashMap<String, String>();
 			cachedFamilyGroups = new HashMap<String, String>();
+		}
+	}
+	
+	public static synchronized void close() throws IOException {
+		if (!closed) {
+			customerTable.close();
+			closed = true;
 		}
 	}
 	
@@ -48,7 +57,7 @@ public class CustomerRepository {
 				for (KeyValue column : columns) {
 					if (new String(column.getQualifier()).equals("client_type")) {
 						if (cachedClientTypes.size() < 5000) {
-							cachedClientTypes.put(box_id, column.getValue().toString());
+							cachedClientTypes.put(box_id, new String(column.getValue()));
 						}
 						return new String(column.getValue());
 					}
@@ -76,8 +85,8 @@ public class CustomerRepository {
 				List<KeyValue> columns = result.list();
 				for (KeyValue column : columns) {
 					if (new String(column.getQualifier()).equals("family_group")) {
-						if (cachedFamilyGroups.containsKey(box_id)) {
-							return cachedFamilyGroups.get(box_id);
+						if (!cachedFamilyGroups.containsKey(box_id)) {
+							cachedFamilyGroups.put(box_id, new String(column.getValue()));
 						}
 						return new String(column.getValue());
 					}

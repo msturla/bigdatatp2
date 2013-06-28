@@ -51,22 +51,14 @@ public class MessageQueueSpout extends BaseRichSpout {
 	public void open(Map conf, TopologyContext context, SpoutOutputCollector collector) {
         _collector = collector;
         ConnectionFactory connectionFactory = new ActiveMQConnectionFactory(URL);
-        System.out.println("Preparing con");
         try {
-        	System.out.println("creating con");
 			connection = connectionFactory.createConnection();
-			System.out.println("starting");
 			connection.start();
-			System.out.println("creating session");
 			session = connection.createSession(false,
 	                Session.AUTO_ACKNOWLEDGE);
-			System.out.println("creating queue");
 			Destination queue = session.createQueue(this.queueName);
-			System.out.println("creating consumer");
 			consumer = session.createConsumer(queue);
-			System.out.println("created consumer. done setting up mq");
 		} catch (JMSException e) {
-			System.out.println("fuck");
 			e.printStackTrace();
 		}
         
@@ -83,8 +75,6 @@ public class MessageQueueSpout extends BaseRichSpout {
     }
         
     public void nextTuple() {
-    	//TODO read these from activemq
-    	//String json = getRandomJsonLine();
     	try{
     		Message msg = consumer.receive();
     		TextMessage textmsg = (TextMessage) msg;

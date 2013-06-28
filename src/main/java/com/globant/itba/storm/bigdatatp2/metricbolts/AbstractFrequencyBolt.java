@@ -27,9 +27,9 @@ public abstract class AbstractFrequencyBolt extends BaseRichBolt {
 	
 	// Boolean which indicates if the "characteristic" depends solely on the box id.
 	// If it does not, then it must be recalculated on every single channel change.
-	boolean recalculateOnChannelChange;
+	protected final boolean recalculateOnChannelChange;
 	
-	protected Map<String, Long> frequencyTable;
+	protected final Map<String, Long> frequencyTable;
 	
 	private long currMinuteFromEpoch = -1;
 	
@@ -51,7 +51,7 @@ public abstract class AbstractFrequencyBolt extends BaseRichBolt {
 
 	@Override
 	public void execute(Tuple input) {
-		long minuteFromEpoch = input.getLongByField("timestamp") / 1000;
+		long minuteFromEpoch = input.getLongByField("timestamp") / 60;
 		if (currMinuteFromEpoch == -1) {
 			currMinuteFromEpoch = minuteFromEpoch;
 		}
@@ -106,6 +106,12 @@ public abstract class AbstractFrequencyBolt extends BaseRichBolt {
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
 		declarer.declare(new Fields("key", "frequency", "minute"));
 		
+	}
+	
+	@Override
+	public void cleanup() {
+		Repositories.closeRepositories();
+		super.cleanup();
 	}
 	
 	

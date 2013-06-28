@@ -23,10 +23,19 @@ public class ChannelRepository {
 	private static HTable channelTable;
 	private static Map<String, List<String>> cachedCategories;
 	
+	private static boolean closed = false;
+	
 	public static synchronized void setConf(Configuration conf) throws IOException {
 		if (channelTable == null) {
 			channelTable = new HTable(conf, "channel");
 			cachedCategories = new HashMap<String, List<String>>();
+		}
+	}
+	
+	public static synchronized void close() throws IOException {
+		if (!closed) {
+			channelTable.close();
+			closed = true;
 		}
 	}
 	

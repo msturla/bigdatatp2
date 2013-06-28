@@ -20,5 +20,19 @@ public class Repositories {
     		e.printStackTrace();
     	}
 	}
+	
+	public static void closeRepositories() {
+		try {
+			ChannelRepository.close();
+		} catch (IOException e) {
+			System.out.println("Error closing channel repo connection: " + e.getMessage());
+		}
+		
+		try {
+			CustomerRepository.close();
+		} catch (IOException e) {
+			System.out.println("Error closing customer repo connection: " + e.getMessage());
+		}
+	}
 
 }

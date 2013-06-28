@@ -29,7 +29,6 @@ public class BoxFrequencyBolt extends AbstractFrequencyBolt {
 	public BoxFrequencyBolt(Function<Tuple, String> func, boolean recalculateOnChannelChange) {
 		super(recalculateOnChannelChange);
 		this.characteristicFunction = func;
-		this.recalculateOnChannelChange = recalculateOnChannelChange;
 		lastSeenValues = new HashMap<Long, String>();			
 
 	}
@@ -46,9 +45,6 @@ public class BoxFrequencyBolt extends AbstractFrequencyBolt {
     	}
     	if (recalculateOnChannelChange || (!lastSeenValues.containsKey(boxId))) {
     		String key = characteristicFunction.eval(tuple);
-    		if (key == null) {
-    			System.out.println("ACA1");
-    		}
     		increaseFreqTable(key);
     		lastSeenValues.put(boxId, key);
     	}

@@ -8,7 +8,6 @@ import backtype.storm.StormSubmitter;
 import backtype.storm.topology.TopologyBuilder;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
-import backtype.storm.utils.Utils;
 
 import com.globant.itba.storm.bigdatatp2.functions.Function;
 import com.globant.itba.storm.bigdatatp2.functions.chars.GetCategoryListFunction;

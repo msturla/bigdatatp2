@@ -1,5 +1,7 @@
 package com.globant.itba.storm.bigdatatp2.metricbolts;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,6 +25,8 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	private static final long serialVersionUID = 1L;
 	OutputCollector _collector;
 	
+	private Connection con;
+	
 	// Given the characeristic ID, maps to a "friendly" name.
 	// If not required, just use identity function
 	private final Function<String, String> mapperFunction;
@@ -43,6 +47,13 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 			OutputCollector collector) {
 		_collector = collector;
 		Repositories.initRepositories();
+			try {
+				con = MySql.connect();
+			} catch (ClassNotFoundException e) {
+				e.printStackTrace();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}			
 	}
 
 	@Override
@@ -64,17 +75,24 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	}
 	
 	private void exportRow(long minuteFromEpoch, String key, long quantity) {
-		//TODO hacer estos inserts
-		// Insert into table: characteristic
-		// minute: minuteFromEpoch, key: key, quantity: quantity
-		//System.out.printf("Metrica: %s, %d, %s, %d\n", this.characteristic, minuteFromEpoch, key, quantity);
-		(new MySql()).insertRow(this.characteristic, minuteFromEpoch, key, quantity);
-		//System.out.println("INSERT INTO "+ this.characteristic +"(METRIC_KEY, MINUTE, QUANTITY) VALUES ('"+key+"',"+String.valueOf(minuteFromEpoch)+","+String.valueOf(quantity)+");");
+		MySql.insertRow(con, this.characteristic, minuteFromEpoch, key, quantity);
 	}
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
 		
+	}
+	
+	@Override
+	public void cleanup() {
+		try {
+			con.close();
+		} catch(SQLException e) { 
+				e.printStackTrace();
+		} finally {
+			Repositories.closeRepositories();
+			super.cleanup();
+		}
 	}
 
 }
