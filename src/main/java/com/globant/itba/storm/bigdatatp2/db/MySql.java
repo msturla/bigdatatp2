@@ -23,7 +23,7 @@ public class MySql {
 		Class.forName("com.mysql.jdbc.Driver");
 		Connection conn = null;
     	 
-    		String connectionString = "jdbc:mysql://10.212.83.136:3306/bigdata";
+    		String connectionString = "jdbc:mysql://54.224.21.206:3306/bigdata";
     		conn = DriverManager.getConnection(connectionString,
 					"root", "root");    		
  
