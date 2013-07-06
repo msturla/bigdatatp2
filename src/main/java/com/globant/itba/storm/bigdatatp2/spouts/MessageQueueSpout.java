@@ -34,16 +34,14 @@ public class MessageQueueSpout extends BaseRichSpout {
 	private MessageConsumer consumer;
 	
 	public static Logger LOG = Logger.getLogger(TestWordSpout.class);
-    boolean _isDistributed;
     SpoutOutputCollector _collector;
     
 
     public MessageQueueSpout() {
-        this(true, "cheese");
+        this("cheese");
     }
 
-    public MessageQueueSpout(boolean isDistributed, String queueName) {
-        _isDistributed = isDistributed;
+    public MessageQueueSpout(String queueName) {
         this.queueName = queueName;
     }
         
@@ -85,7 +83,7 @@ public class MessageQueueSpout extends BaseRichSpout {
     		long timestamp = Long.valueOf(getField(json, "timestamp"));
     		_collector.emit(new Values(box_id, channelString, power, timestamp, json));    		
     	} catch (JMSException e) {
-    		System.out.printf("Error while reading from JMS: %s\n", e.getMessage());
+    		LOG.error(String.format("Error while reading from JMS: %s\n", e.getMessage()));
     	}
     }
     
@@ -115,13 +113,9 @@ public class MessageQueueSpout extends BaseRichSpout {
 
     @Override
     public Map<String, Object> getComponentConfiguration() {
-        if(!_isDistributed) {
             Map<String, Object> ret = new HashMap<String, Object>();
             ret.put(Config.TOPOLOGY_MAX_TASK_PARALLELISM, 1);
             return ret;
-        } else {
-            return null;
-        }
     }
 
 	public String getQueueName() {

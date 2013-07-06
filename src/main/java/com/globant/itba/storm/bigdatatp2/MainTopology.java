@@ -21,6 +21,7 @@ import com.globant.itba.storm.bigdatatp2.metricbolts.BoxFrequencyBolt;
 import com.globant.itba.storm.bigdatatp2.metricbolts.BoxListFrequencyBolt;
 import com.globant.itba.storm.bigdatatp2.metricbolts.FrequencyOutputBolt;
 import com.globant.itba.storm.bigdatatp2.spouts.MessageQueueSpout;
+import com.globant.itba.storm.bigdatatp2.spouts.PeriodicSpout;
 
 /**
  * This is a basic example of a Storm topology.
@@ -45,10 +46,11 @@ public class MainTopology {
     		}
     	}
     	if( flags[1] ){
-    		builder.setSpout("msgqueue", new MessageQueueSpout(true, parameters[1]));
+    		builder.setSpout("msgqueue", new MessageQueueSpout(parameters[1]));
     	}else{
     		builder.setSpout("msgqueue", new MessageQueueSpout());
     	}
+    	builder.setSpout("ticker", new PeriodicSpout(5));
     	
     	
     	addMetricToBuilder(builder, new GetChannelFunction(), new GetChannelNameFunction(), "ViewersPerChannel", true);
@@ -75,16 +77,20 @@ public class MainTopology {
     private static void addMetricToBuilder(TopologyBuilder builder, Function<Tuple, String> charFunc, 
     		Function<String, String> mapperFunc, String charName, boolean checkOnChannelChange) {
     	builder.setBolt(charName + "Counter", new BoxFrequencyBolt(charFunc, checkOnChannelChange), 1)
-        .noneGrouping("msgqueue");
+        .fieldsGrouping("msgqueue", new Fields("box_id"))
+        .noneGrouping("ticker");
     builder.setBolt(charName + "Dumper", new FrequencyOutputBolt(mapperFunc, charName), 3)
-    	.fieldsGrouping(charName + "Counter", new Fields("key"));
+    	.fieldsGrouping(charName + "Counter", new Fields("key"))
+    	 .noneGrouping("ticker");
     }
     
     private static void addListMetricToBuilder(TopologyBuilder builder, Function<Tuple, List<String>> charFunc, 
     		Function<String, String> mapperFunc, String charName, boolean checkOnChannelChange) {
     	builder.setBolt(charName + "Counter", new BoxListFrequencyBolt(charFunc, checkOnChannelChange), 1)
-        .noneGrouping("msgqueue");
+    	.fieldsGrouping("msgqueue", new Fields("box_id"))
+        .noneGrouping("ticker");
     builder.setBolt(charName + "Dumper", new FrequencyOutputBolt(mapperFunc, charName), 1)
-    	.noneGrouping(charName + "Counter");
+    	.noneGrouping(charName + "Counter")
+    	 .noneGrouping("ticker");
     }
 }

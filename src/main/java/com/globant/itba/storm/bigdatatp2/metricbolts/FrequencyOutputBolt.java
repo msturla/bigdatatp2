@@ -4,6 +4,10 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.PriorityQueue;
+
+import org.apache.log4j.Logger;
 
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -17,13 +21,20 @@ import com.globant.itba.storm.bigdatatp2.functions.mappers.IdentityFunction;
 import com.globant.itba.storm.bigdatatp2.hbase.Repositories;
 
 /**
- * Adds the frequencies of a certain characteristic.
+ * Stores a base version (checkpoint) of the frequencies. Groups frequencies by VALUE.
+ * Stores CHANGES per minute. When the data(changes) becomes old or too large, will persist it.
+ * When data is persisted, it becomes the new checkpoint.
  *
  */
 public class FrequencyOutputBolt extends BaseRichBolt {
 	
 	private static final long serialVersionUID = 1L;
-	OutputCollector _collector;
+	
+	private static final int TICK_DELTA = 10;
+	
+	private static final int MAX_CHANGES_SIZE = 1000;
+	
+	private static Logger LOG = Logger.getLogger(FrequencyOutputBolt.class);
 	
 	private Connection con;
 	
@@ -31,37 +42,97 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	// If not required, just use identity function
 	private final Function<String, String> mapperFunction;
 	
+	private long currentTick;
+	
+	// Caching of mappings.
 	private Map<String, String> mappings;
 	
+	//Characteristic being stored.
 	private String characteristic;
+	
+	// Changes stored as a map
+	private Map<Long, Changes> changesMap;
+	
+	// Changes stored as a heap (order is currMinute)
+	private PriorityQueue<Changes> changesHeap;
+	
+	// frequencies of the checkpoint
+	private Map<String, Integer> checkpointFrequencies;
+	private long checkpointMinute = -1;
 		
 	public FrequencyOutputBolt(Function<String, String> func, String characteristic) {
 		this.mapperFunction = func;
 		mappings = new HashMap<String, String>();
 		this.characteristic = characteristic;
+		checkpointFrequencies = new HashMap<String, Integer>();
+		changesMap = new HashMap<Long, Changes>();
+		changesHeap = new PriorityQueue<Changes>();
 	}
 
 	@SuppressWarnings("rawtypes")
 	@Override
 	public void prepare(Map stormConf, TopologyContext context,
 			OutputCollector collector) {
-		_collector = collector;
 		Repositories.initRepositories();
 			try {
 				con = MySql.connect();
 			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
+				LOG.error(String.format("ClassNotFoundError while connecting to mysql: %s\n",
+						e.getMessage()));
 			} catch (SQLException e) {
-				e.printStackTrace();
+				LOG.error(String.format("SQLError while connecting to mysql: %s\n",
+						e.getMessage()));
 			}			
 	}
 
 	@Override
 	public void execute(Tuple input) {
+		if (input.contains("tick")) {
+			long tick = input.getLongByField("tick");
+			currentTick = tick;
+			updateCheckPoint();
+		}
 		long minute = input.getLongByField("minute");
 		String key = input.getStringByField("key");
-		long quantity = input.getLongByField("frequency");
-		exportRow(minute, getMapping(key), quantity);
+		int quantity = input.getIntegerByField("frequency");
+		addChanges(minute, getMapping(key), quantity);
+	}
+	
+	private boolean mustUpdateCheckpoint() {
+		Changes firstChanges = changesHeap.peek();
+		return (firstChanges.tick  < currentTick - TICK_DELTA && changesHeap.size() > 1)
+				|| changesHeap.size() > MAX_CHANGES_SIZE;
+	}
+	
+	private void updateCheckPoint() {
+		while (mustUpdateCheckpoint()) {
+			Changes changes  = changesHeap.poll();
+			changesMap.remove(changes.minuteFromEpoch);
+			createNewCheckpoint(changes);
+			persistCheckpoint(changes.minuteFromEpoch);
+			checkpointMinute = changes.minuteFromEpoch;
+		}
+	}
+	
+	private void createNewCheckpoint(Changes changes) {
+		for (Entry<String, Integer> entry : changes.changesMap.entrySet()) {
+			if (!checkpointFrequencies.containsKey(entry.getKey())) {
+				checkpointFrequencies.put(entry.getKey(), 0);
+			}
+			checkpointFrequencies.put(entry.getKey(),
+					checkpointFrequencies.get(entry.getKey()) + entry.getValue());
+		}
+	}
+	
+	private void persistCheckpoint(long newMinute) {
+		if (checkpointMinute != -1) {
+			for (long i = checkpointMinute + 1; i <= newMinute; i ++) {
+				for (Entry<String, Integer> entry: checkpointFrequencies.entrySet()) {
+					MySql.insertRow(con, characteristic, i, entry.getKey(), entry.getValue());
+				}
+			}
+		}
+		
 	}
 	
 	private String getMapping(String key) {
@@ -74,13 +145,26 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		return mappings.get(key);
 	}
 	
-	private void exportRow(long minuteFromEpoch, String key, long quantity) {
-		MySql.insertRow(con, this.characteristic, minuteFromEpoch, key, quantity);
+	private void addChanges(long minuteFromEpoch, String key, int quantity) {
+		if (minuteFromEpoch <= checkpointMinute) {
+			LOG.warn(String.format("Got very old changes. min: %d, curr: %d. Discarding\n",
+					minuteFromEpoch, checkpointMinute));
+			return;
+		}
+		Changes currChanges = null;
+		if (!changesMap.containsKey(minuteFromEpoch)) {
+			currChanges = new Changes(minuteFromEpoch);
+			changesMap.put(minuteFromEpoch, currChanges);
+			changesHeap.add(currChanges);
+		} else {
+			currChanges = changesMap.get(minuteFromEpoch);
+		}
+		currChanges.changeValue(key, quantity, currentTick);
 	}
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		
+		// never emits
 	}
 	
 	@Override
@@ -92,6 +176,32 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		} finally {
 			Repositories.closeRepositories();
 			super.cleanup();
+		}
+	}
+	
+	private class Changes implements Comparable<Changes> {
+		private Map<String, Integer> changesMap;
+		private long minuteFromEpoch;
+		
+		// last tick during which this data was modified.
+		private long tick;
+		
+		public Changes(long minuteFromEpoch) {
+			this.minuteFromEpoch = minuteFromEpoch;
+			changesMap = new HashMap<String, Integer>();
+		}
+		
+		public void changeValue(String value, int quantity, long tick) {
+			this.tick = tick;
+			if (!changesMap.containsKey(value)) {
+				changesMap.put(value, 0);
+			}
+			changesMap.put(value, changesMap.get(value) + quantity);
+		}
+
+		@Override
+		public int compareTo(Changes that) {
+			return (int )(this.minuteFromEpoch - that.minuteFromEpoch);
 		}
 	}
 
