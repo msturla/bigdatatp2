@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.log4j.Logger;
+
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
 import backtype.storm.topology.OutputFieldsDeclarer;
@@ -24,6 +26,7 @@ public abstract class AbstractFrequencyBolt extends BaseRichBolt {
 	private static final long serialVersionUID = 1L;
 	OutputCollector _collector;
 	
+	private static Logger LOG = Logger.getLogger(AbstractFrequencyBolt.class);
 	
 
 	// Boolean which indicates if the "characteristic" depends solely on the box
@@ -54,10 +57,6 @@ public abstract class AbstractFrequencyBolt extends BaseRichBolt {
 
 	@Override
 	public void execute(Tuple input) {
-		long minuteFromEpoch = input.getLongByField("timestamp") / 60;
-		if (currMinuteFromEpoch == -1) {
-			currMinuteFromEpoch = minuteFromEpoch;
-		}
 		if (input.contains("tick")) {
 			if(staleData)
 				exportData();
@@ -65,6 +64,15 @@ public abstract class AbstractFrequencyBolt extends BaseRichBolt {
 				staleData = true;
 			return;
 		}
+		long minuteFromEpoch = input.getLongByField("timestamp") / 60;
+		if (minuteFromEpoch < currMinuteFromEpoch) {
+			LOG.warn(String.format("Old data! got: %d, cur : %d. ignoring.\n",
+					minuteFromEpoch, currMinuteFromEpoch));
+		}
+		if (currMinuteFromEpoch == -1) {
+			currMinuteFromEpoch = minuteFromEpoch;
+		}
+		
 		if (mustExportData(minuteFromEpoch)) {
 			exportData();
 			currMinuteFromEpoch = minuteFromEpoch;
@@ -107,6 +115,9 @@ public abstract class AbstractFrequencyBolt extends BaseRichBolt {
 	}
 
 	protected void decreaseFreqTable(String key) {
+		if (!frequencyTable.containsKey(key)) {
+			frequencyTable.put(key, 0);
+		}
 		frequencyTable.put(key, frequencyTable.get(key) - 1);
 	}
 

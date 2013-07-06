@@ -40,8 +40,7 @@ public class BoxFrequencyBolt extends AbstractFrequencyBolt {
 		long boxId = tuple.getLongByField("box_id");
     	if (lastSeenValues.containsKey(boxId) && recalculateOnChannelChange) {
     		String prevValue  = lastSeenValues.get(boxId);
-    		int prevCount = frequencyTable.get(prevValue);
-    		frequencyTable.put(prevValue, prevCount - 1);
+    		decreaseFreqTable(prevValue);
     	}
     	if (recalculateOnChannelChange || (!lastSeenValues.containsKey(boxId))) {
     		String key = characteristicFunction.eval(tuple);

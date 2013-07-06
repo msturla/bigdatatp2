@@ -3,9 +3,11 @@ package com.globant.itba.storm.bigdatatp2.metricbolts;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.PriorityQueue;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 
@@ -30,11 +32,14 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	
 	private static final long serialVersionUID = 1L;
 	
-	private static final int TICK_DELTA = 10;
+	private static final int TICK_DELTA = 20;
 	
-	private static final int MAX_CHANGES_SIZE = 1000;
+	private static final int MAX_CHANGES_SIZE = 10000;
 	
 	private static Logger LOG = Logger.getLogger(FrequencyOutputBolt.class);
+	
+	//logging only
+	private long highestMinute = -1;
 	
 	private Connection con;
 	
@@ -90,18 +95,31 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		if (input.contains("tick")) {
 			long tick = input.getLongByField("tick");
 			currentTick = tick;
+			check();
 			updateCheckPoint();
+		} else {
+			long minute = input.getLongByField("minute");
+			String key = input.getStringByField("key");
+			int quantity = input.getIntegerByField("frequency");
+			addChanges(minute, getMapping(key), quantity);			
 		}
-		long minute = input.getLongByField("minute");
-		String key = input.getStringByField("key");
-		int quantity = input.getIntegerByField("frequency");
-		addChanges(minute, getMapping(key), quantity);
 	}
 	
 	private boolean mustUpdateCheckpoint() {
 		Changes firstChanges = changesHeap.peek();
-		return (firstChanges.tick  < currentTick - TICK_DELTA && changesHeap.size() > 1)
+		boolean ret = (firstChanges != null && firstChanges.tick  < currentTick - TICK_DELTA && changesHeap.size() > 1)
 				|| changesHeap.size() > MAX_CHANGES_SIZE;
+		return ret;
+	}
+	
+	private void check() {
+		Set<Long> seen = new HashSet<Long>();
+		for (Changes changes : changesHeap) {
+			if (seen.contains(changes.minuteFromEpoch)) {
+				System.out.println("GGGGG");
+			}
+			seen.add(changes.minuteFromEpoch);
+		}
 	}
 	
 	private void updateCheckPoint() {
@@ -119,8 +137,8 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 			if (!checkpointFrequencies.containsKey(entry.getKey())) {
 				checkpointFrequencies.put(entry.getKey(), 0);
 			}
-			checkpointFrequencies.put(entry.getKey(),
-					checkpointFrequencies.get(entry.getKey()) + entry.getValue());
+			int newValue = checkpointFrequencies.get(entry.getKey()) + entry.getValue();
+			checkpointFrequencies.put(entry.getKey(), newValue < 0 ? 0 : newValue);
 		}
 	}
 	
@@ -128,7 +146,7 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		if (checkpointMinute != -1) {
 			for (long i = checkpointMinute + 1; i <= newMinute; i ++) {
 				for (Entry<String, Integer> entry: checkpointFrequencies.entrySet()) {
-					MySql.insertRow(con, characteristic, i, entry.getKey(), entry.getValue());
+					MySql.insertRow(con, characteristic, i, getMapping(entry.getKey()), entry.getValue());
 				}
 			}
 		}
@@ -147,15 +165,15 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	
 	private void addChanges(long minuteFromEpoch, String key, int quantity) {
 		if (minuteFromEpoch <= checkpointMinute) {
-			LOG.warn(String.format("Got very old changes. min: %d, curr: %d. Discarding\n",
-					minuteFromEpoch, checkpointMinute));
+			LOG.warn(String.format("Got very old changes. min: %d, curr: %d, highest: %d. Discarding\n",
+					minuteFromEpoch, checkpointMinute, highestMinute));
 			return;
 		}
 		Changes currChanges = null;
 		if (!changesMap.containsKey(minuteFromEpoch)) {
 			currChanges = new Changes(minuteFromEpoch);
 			changesMap.put(minuteFromEpoch, currChanges);
-			changesHeap.add(currChanges);
+			changesHeap.offer(currChanges);
 		} else {
 			currChanges = changesMap.get(minuteFromEpoch);
 		}
@@ -184,11 +202,14 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		private long minuteFromEpoch;
 		
 		// last tick during which this data was modified.
-		private long tick;
+		private long tick = 0;
 		
 		public Changes(long minuteFromEpoch) {
 			this.minuteFromEpoch = minuteFromEpoch;
 			changesMap = new HashMap<String, Integer>();
+			if (minuteFromEpoch > highestMinute) {
+				highestMinute = minuteFromEpoch;
+			}
 		}
 		
 		public void changeValue(String value, int quantity, long tick) {

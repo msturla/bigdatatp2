@@ -44,8 +44,7 @@ public class BoxListFrequencyBolt extends AbstractFrequencyBolt {
     	if (lastSeenValues.containsKey(boxId) && recalculateOnChannelChange) {
     		List<String> prevValues  = lastSeenValues.get(boxId);
     		for (String key : prevValues) {
-    			int prevCount = frequencyTable.get(key);
-    			frequencyTable.put(key, prevCount - 1);
+    			decreaseFreqTable(key);
     		}
     	}
     	if (recalculateOnChannelChange || (!lastSeenValues.containsKey(boxId))) {
