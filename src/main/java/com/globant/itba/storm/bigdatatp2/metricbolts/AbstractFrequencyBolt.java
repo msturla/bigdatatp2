@@ -64,6 +64,7 @@ public abstract class AbstractFrequencyBolt extends BaseRichBolt {
 				staleData = true;
 			return;
 		}
+		staleData = false;
 		long minuteFromEpoch = input.getLongByField("timestamp") / 60;
 		if (minuteFromEpoch < currMinuteFromEpoch) {
 			LOG.warn(String.format("Old data! got: %d, cur : %d. ignoring.\n",
@@ -87,6 +88,7 @@ public abstract class AbstractFrequencyBolt extends BaseRichBolt {
 	}
 
 	private void exportData() {
+		staleData = false;
 		for (Entry<String, Integer> entry : frequencyTable.entrySet()) {
 			_collector.emit(new Values(entry.getKey(), entry.getValue(), currMinuteFromEpoch));
 		}

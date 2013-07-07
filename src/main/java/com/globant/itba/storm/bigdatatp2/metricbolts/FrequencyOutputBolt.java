@@ -3,11 +3,9 @@ package com.globant.itba.storm.bigdatatp2.metricbolts;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.PriorityQueue;
-import java.util.Set;
 
 import org.apache.log4j.Logger;
 
@@ -62,14 +60,14 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	private PriorityQueue<Changes> changesHeap;
 	
 	// frequencies of the checkpoint
-	private Map<String, Integer> checkpointFrequencies;
+	private Map<String, Long> checkpointFrequencies;
 	private long checkpointMinute = -1;
 		
 	public FrequencyOutputBolt(Function<String, String> func, String characteristic) {
 		this.mapperFunction = func;
 		mappings = new HashMap<String, String>();
 		this.characteristic = characteristic;
-		checkpointFrequencies = new HashMap<String, Integer>();
+		checkpointFrequencies = new HashMap<String, Long>();
 		changesMap = new HashMap<Long, Changes>();
 		changesHeap = new PriorityQueue<Changes>();
 	}
@@ -95,7 +93,6 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		if (input.contains("tick")) {
 			long tick = input.getLongByField("tick");
 			currentTick = tick;
-			check();
 			updateCheckPoint();
 		} else {
 			long minute = input.getLongByField("minute");
@@ -112,16 +109,6 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		return ret;
 	}
 	
-	private void check() {
-		Set<Long> seen = new HashSet<Long>();
-		for (Changes changes : changesHeap) {
-			if (seen.contains(changes.minuteFromEpoch)) {
-				System.out.println("GGGGG");
-			}
-			seen.add(changes.minuteFromEpoch);
-		}
-	}
-	
 	private void updateCheckPoint() {
 		while (mustUpdateCheckpoint()) {
 			Changes changes  = changesHeap.poll();
@@ -135,9 +122,9 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	private void createNewCheckpoint(Changes changes) {
 		for (Entry<String, Integer> entry : changes.changesMap.entrySet()) {
 			if (!checkpointFrequencies.containsKey(entry.getKey())) {
-				checkpointFrequencies.put(entry.getKey(), 0);
+				checkpointFrequencies.put(entry.getKey(), (long) 0);
 			}
-			int newValue = checkpointFrequencies.get(entry.getKey()) + entry.getValue();
+			long newValue = checkpointFrequencies.get(entry.getKey()) + entry.getValue();
 			checkpointFrequencies.put(entry.getKey(), newValue < 0 ? 0 : newValue);
 		}
 	}
@@ -145,7 +132,7 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	private void persistCheckpoint(long newMinute) {
 		if (checkpointMinute != -1) {
 			for (long i = checkpointMinute + 1; i <= newMinute; i ++) {
-				for (Entry<String, Integer> entry: checkpointFrequencies.entrySet()) {
+				for (Entry<String, Long> entry: checkpointFrequencies.entrySet()) {
 					MySql.insertRow(con, characteristic, i, getMapping(entry.getKey()), entry.getValue());
 				}
 			}
@@ -165,8 +152,8 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	
 	private void addChanges(long minuteFromEpoch, String key, int quantity) {
 		if (minuteFromEpoch <= checkpointMinute) {
-			LOG.warn(String.format("Got very old changes. min: %d, curr: %d, highest: %d. Discarding\n",
-					minuteFromEpoch, checkpointMinute, highestMinute));
+			// Very old changes, which were already persisted.
+			fixOldValues(minuteFromEpoch, key, quantity);
 			return;
 		}
 		Changes currChanges = null;
@@ -179,6 +166,32 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		}
 		currChanges.changeValue(key, quantity, currentTick);
 	}
+	
+	private void fixOldValues(long minuteFromEpoch, String key, int quantity) {
+		// Need to loockup values previous to checkpoint
+		for (long i = minuteFromEpoch; i < checkpointMinute - 1; i ++) {
+			try {
+				long value = MySql.getValue(con, characteristic, minuteFromEpoch, key);
+				long newValue = quantity + value;
+				if (newValue < 0) newValue = 0;
+				MySql.insertRow(con, characteristic, minuteFromEpoch, key, newValue);				
+			} catch (SQLException e) {
+				LOG.error("MySql error while fetching data: " + e.getMessage());
+			}
+		}
+		// Persist new checkpoint value in DB
+		long value = 0;
+		if (!checkpointFrequencies.containsKey(key)) {
+			value = checkpointFrequencies.get(key);
+		}
+		if (value < 0) value = 0;
+		MySql.insertRow(con, characteristic, minuteFromEpoch, key, value);
+		// Fix checkpoint in memory. This automatically propagates changes forward.
+		checkpointFrequencies.put(key, value);
+		
+		
+		
+	}
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
@@ -190,7 +203,7 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		try {
 			con.close();
 		} catch(SQLException e) { 
-				e.printStackTrace();
+				LOG.error("Error while closing SQL Connection: " + e.getMessage());
 		} finally {
 			Repositories.closeRepositories();
 			super.cleanup();
