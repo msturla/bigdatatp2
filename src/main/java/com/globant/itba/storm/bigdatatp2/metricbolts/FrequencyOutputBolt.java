@@ -16,8 +16,6 @@ import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
 import com.globant.itba.storm.bigdatatp2.db.MySql;
-import com.globant.itba.storm.bigdatatp2.functions.Function;
-import com.globant.itba.storm.bigdatatp2.functions.mappers.IdentityFunction;
 import com.globant.itba.storm.bigdatatp2.hbase.Repositories;
 
 /**
@@ -36,19 +34,13 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	
 	private static Logger LOG = Logger.getLogger(FrequencyOutputBolt.class);
 	
-	//logging only
-	private long highestMinute = -1;
-	
 	private Connection con;
 	
-	// Given the characeristic ID, maps to a "friendly" name.
-	// If not required, just use identity function
-	private final Function<String, String> mapperFunction;
+	
 	
 	private long currentTick;
 	
-	// Caching of mappings.
-	private Map<String, String> mappings;
+	
 	
 	//Characteristic being stored.
 	private String characteristic;
@@ -63,9 +55,8 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 	private Map<String, Long> checkpointFrequencies;
 	private long checkpointMinute = -1;
 		
-	public FrequencyOutputBolt(Function<String, String> func, String characteristic) {
-		this.mapperFunction = func;
-		mappings = new HashMap<String, String>();
+	public FrequencyOutputBolt(String characteristic) {
+		
 		this.characteristic = characteristic;
 		checkpointFrequencies = new HashMap<String, Long>();
 		changesMap = new HashMap<Long, Changes>();
@@ -98,13 +89,13 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 			long minute = input.getLongByField("minute");
 			String key = input.getStringByField("key");
 			int quantity = input.getIntegerByField("frequency");
-			addChanges(minute, getMapping(key), quantity);			
+			addChanges(minute, key, quantity);			
 		}
 	}
 	
 	private boolean mustUpdateCheckpoint() {
 		Changes firstChanges = changesHeap.peek();
-		boolean ret = (firstChanges != null && firstChanges.tick  < currentTick - TICK_DELTA && changesHeap.size() > 1)
+		boolean ret = (firstChanges != null && firstChanges.tick  < currentTick - TICK_DELTA)
 				|| changesHeap.size() > MAX_CHANGES_SIZE;
 		return ret;
 	}
@@ -133,24 +124,14 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		if (checkpointMinute != -1) {
 			for (long i = checkpointMinute + 1; i <= newMinute; i ++) {
 				for (Entry<String, Long> entry: checkpointFrequencies.entrySet()) {
-					MySql.insertRow(con, characteristic, i, getMapping(entry.getKey()), entry.getValue());
+					MySql.insertRow(con, characteristic, i, entry.getKey(), entry.getValue());
 				}
 			}
 		}
 		
 	}
 	
-	private String getMapping(String key) {
-		// Breaks the functional aspect but saves memory...
-		if (mapperFunction instanceof IdentityFunction) return key;
-		if (!mappings.containsKey(key)) {
-			String mappedValue  = mapperFunction.eval(key);
-			mappings.put(key, mappedValue);
-		}
-		return mappings.get(key);
-	}
-	
-	private void addChanges(long minuteFromEpoch, String key, int quantity) {
+	protected void addChanges(long minuteFromEpoch, String key, int quantity) {
 		if (minuteFromEpoch <= checkpointMinute) {
 			// Very old changes, which were already persisted.
 			fixOldValues(minuteFromEpoch, key, quantity);
@@ -220,9 +201,6 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 		public Changes(long minuteFromEpoch) {
 			this.minuteFromEpoch = minuteFromEpoch;
 			changesMap = new HashMap<String, Integer>();
-			if (minuteFromEpoch > highestMinute) {
-				highestMinute = minuteFromEpoch;
-			}
 		}
 		
 		public void changeValue(String value, int quantity, long tick) {
@@ -230,7 +208,12 @@ public class FrequencyOutputBolt extends BaseRichBolt {
 			if (!changesMap.containsKey(value)) {
 				changesMap.put(value, 0);
 			}
-			changesMap.put(value, changesMap.get(value) + quantity);
+			int newQuantity = changesMap.get(value) + quantity;
+			if (newQuantity != 0) {
+				changesMap.put(value, changesMap.get(value) + quantity);				
+			} else {
+				changesMap.remove(value);
+			}
 		}
 
 		@Override

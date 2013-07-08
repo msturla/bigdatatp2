@@ -17,8 +17,10 @@ import com.globant.itba.storm.bigdatatp2.functions.chars.GetFamilyGroupFunction;
 import com.globant.itba.storm.bigdatatp2.functions.chars.UnitaryImageFunction;
 import com.globant.itba.storm.bigdatatp2.functions.mappers.GetChannelNameFunction;
 import com.globant.itba.storm.bigdatatp2.functions.mappers.IdentityFunction;
+import com.globant.itba.storm.bigdatatp2.metricbolts.AbstractFrequencyBolt;
 import com.globant.itba.storm.bigdatatp2.metricbolts.BoxFrequencyBolt;
 import com.globant.itba.storm.bigdatatp2.metricbolts.BoxListFrequencyBolt;
+import com.globant.itba.storm.bigdatatp2.metricbolts.CharCachingFrequencyOutputBolt;
 import com.globant.itba.storm.bigdatatp2.metricbolts.FrequencyOutputBolt;
 import com.globant.itba.storm.bigdatatp2.spouts.MessageQueueSpout;
 import com.globant.itba.storm.bigdatatp2.spouts.PeriodicSpout;
@@ -60,10 +62,10 @@ public class MainTopology {
     	
     	
     	addMetricToBuilder(builder, new GetChannelFunction(), new GetChannelNameFunction(), "ViewersPerChannel", true);
-    	addMetricToBuilder(builder, new UnitaryImageFunction(), new IdentityFunction(), "TotalViewers", false);
-    	addMetricToBuilder(builder, new GetClientTypeFunction(), new IdentityFunction(), "ViewersPerType", true);
-    	addMetricToBuilder(builder, new GetFamilyGroupFunction(), new IdentityFunction(), "ViewersPerFamilyGroup", true);
-    	addListMetricToBuilder(builder, new GetCategoryListFunction(), new IdentityFunction(), "ViewersPerCategory", true);
+    	addMetricToBuilder(builder, new UnitaryImageFunction(), null, "TotalViewers", false);
+    	addMetricToBuilder(builder, new GetClientTypeFunction(), null, "ViewersPerType", true);
+    	addMetricToBuilder(builder, new GetFamilyGroupFunction(), null, "ViewersPerFamilyGroup", true);
+    	addListMetricToBuilder(builder, new GetCategoryListFunction(), null, "ViewersPerCategory", true);
    
                 
         Config conf = new Config();
@@ -82,21 +84,33 @@ public class MainTopology {
     
     private static void addMetricToBuilder(TopologyBuilder builder, Function<Tuple, String> charFunc, 
     		Function<String, String> mapperFunc, String charName, boolean checkOnChannelChange) {
-    	builder.setBolt(charName + "Counter", new BoxFrequencyBolt(charFunc, checkOnChannelChange), BOX_PARALLELISM)
-        .fieldsGrouping("msgqueue", new Fields("box_id"))
-        .noneGrouping("ticker");
-    builder.setBolt(charName + "Dumper", new FrequencyOutputBolt(mapperFunc, charName), OUTPUT_PARALLELISM)
-    	.fieldsGrouping(charName + "Counter", new Fields("key"))
-    	 .noneGrouping("ticker");
+    	FrequencyOutputBolt outBolt = null;
+    	if (mapperFunc == null) {
+    		outBolt = new FrequencyOutputBolt(charName);
+    	} else {
+    		outBolt = new CharCachingFrequencyOutputBolt(mapperFunc, charName);
+    	}
+    	addGenericMetricToBuilder(builder, new BoxFrequencyBolt(charFunc, checkOnChannelChange), outBolt, charName);
     }
     
     private static void addListMetricToBuilder(TopologyBuilder builder, Function<Tuple, List<String>> charFunc, 
     		Function<String, String> mapperFunc, String charName, boolean checkOnChannelChange) {
-    	builder.setBolt(charName + "Counter", new BoxListFrequencyBolt(charFunc, checkOnChannelChange), BOX_PARALLELISM)
-    	.fieldsGrouping("msgqueue", new Fields("box_id"))
+    	FrequencyOutputBolt outBolt = null;
+    	if (mapperFunc == null) {
+    		outBolt = new FrequencyOutputBolt(charName);
+    	} else {
+    		outBolt = new CharCachingFrequencyOutputBolt(mapperFunc, charName);
+    	}
+    	addGenericMetricToBuilder(builder, new BoxListFrequencyBolt(charFunc, checkOnChannelChange), outBolt, charName);
+    }
+    
+    private static void addGenericMetricToBuilder(TopologyBuilder builder, AbstractFrequencyBolt bolt, FrequencyOutputBolt outBolt,
+    		String charName) {
+    	builder.setBolt(charName + "Counter", bolt, BOX_PARALLELISM)
+        .fieldsGrouping("msgqueue", new Fields("box_id"))
         .noneGrouping("ticker");
-    builder.setBolt(charName + "Dumper", new FrequencyOutputBolt(mapperFunc, charName), OUTPUT_PARALLELISM)
-    	.noneGrouping(charName + "Counter")
+    builder.setBolt(charName + "Dumper", outBolt, OUTPUT_PARALLELISM)
+    	.fieldsGrouping(charName + "Counter", new Fields("key"))
     	 .noneGrouping("ticker");
     }
 }

@@ -69,6 +69,7 @@ public abstract class AbstractFrequencyBolt extends BaseRichBolt {
 		if (minuteFromEpoch < currMinuteFromEpoch) {
 			LOG.warn(String.format("Old data! got: %d, cur : %d. ignoring.\n",
 					minuteFromEpoch, currMinuteFromEpoch));
+			return;
 		}
 		if (currMinuteFromEpoch == -1) {
 			currMinuteFromEpoch = minuteFromEpoch;
@@ -90,7 +91,9 @@ public abstract class AbstractFrequencyBolt extends BaseRichBolt {
 	private void exportData() {
 		staleData = false;
 		for (Entry<String, Integer> entry : frequencyTable.entrySet()) {
-			_collector.emit(new Values(entry.getKey(), entry.getValue(), currMinuteFromEpoch));
+			if (entry.getValue() != 0) {
+				_collector.emit(new Values(entry.getKey(), entry.getValue(), currMinuteFromEpoch));				
+			}
 		}
 		frequencyTable.clear();
 	}
