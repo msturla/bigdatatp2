@@ -16,7 +16,6 @@ import com.globant.itba.storm.bigdatatp2.functions.chars.GetClientTypeFunction;
 import com.globant.itba.storm.bigdatatp2.functions.chars.GetFamilyGroupFunction;
 import com.globant.itba.storm.bigdatatp2.functions.chars.UnitaryImageFunction;
 import com.globant.itba.storm.bigdatatp2.functions.mappers.GetChannelNameFunction;
-import com.globant.itba.storm.bigdatatp2.functions.mappers.IdentityFunction;
 import com.globant.itba.storm.bigdatatp2.metricbolts.AbstractFrequencyBolt;
 import com.globant.itba.storm.bigdatatp2.metricbolts.BoxFrequencyBolt;
 import com.globant.itba.storm.bigdatatp2.metricbolts.BoxListFrequencyBolt;
@@ -88,7 +87,7 @@ public class MainTopology {
     	if (mapperFunc == null) {
     		outBolt = new FrequencyOutputBolt(charName);
     	} else {
-    		outBolt = new CharCachingFrequencyOutputBolt(mapperFunc, charName);
+    		outBolt = new CharCachingFrequencyOutputBolt(charName, mapperFunc);
     	}
     	addGenericMetricToBuilder(builder, new BoxFrequencyBolt(charFunc, checkOnChannelChange), outBolt, charName);
     }
@@ -99,7 +98,7 @@ public class MainTopology {
     	if (mapperFunc == null) {
     		outBolt = new FrequencyOutputBolt(charName);
     	} else {
-    		outBolt = new CharCachingFrequencyOutputBolt(mapperFunc, charName);
+    		outBolt = new CharCachingFrequencyOutputBolt(charName, mapperFunc);
     	}
     	addGenericMetricToBuilder(builder, new BoxListFrequencyBolt(charFunc, checkOnChannelChange), outBolt, charName);
     }
